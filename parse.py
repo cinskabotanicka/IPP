@@ -205,15 +205,14 @@ RETCODE = {
 #
 
 # Funkce pro vrácení XML jako řetězce, volitelně formátovaného jako dokument XML
-def XML_asXML(format: bool = False) -> str: # 
+def XML_asXML(format: bool = False) -> str: 
     global XML
 
     if not format:
         return ET.tostring(XML, encoding='unicode')
 
     xml_string = ET.tostring(XML, encoding='unicode')
-    dom = ET.fromstring(xml_string)
-    return ET.tostring(dom, encoding='unicode', method='xml')
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + xml_string
 
 # Funkce pro vytvoření kořenového elementu XML 
 def XML_new_root() -> ET.Element:
@@ -261,42 +260,42 @@ def XML_make_type(arg_xml: ET.Element, type_str: str) -> ET.Element:
     return arg_xml
 
 # Funkce provádí předzpracování kódu
-def ippc_preparse(line: str) -> Union[str, None]:
+def preparse(line: str) -> Union[str, None]:
     global GINFO
 
     # Celý řádek je komentář
-    if ippc_is_comment(line):
+    if is_comment(line):
         GINFO['c_lines'] += 1
         return None
 
     # Odstranění komentářů
-    if ippc_has_comment(line):
+    if has_comment(line):
         GINFO['c_lines'] += 1
-        line = ippc_remove_comments(line)
+        line = remove_comments(line)
 
     # Odstranění nadbytečných bílých znaků
     line = re.sub(r'\s+', ' ', line).strip()
 
     # Prázdný řádek
-    if ippc_is_empty_line(line):
+    if is_empty_line(line):
         return None
 
     return line
 
 # Funkce zpracovává řádek kódu
-def ippc_parse_line(line: str) -> None:
+def parse_line(line: str) -> None:
     global GINFO
     global XML
 
     # Odstranění komentářů a ignorování prázdných řádků
-    line = ippc_preparse(line)
+    line = preparse(line)
     if not line:
         return
 
     # První neprázdný řádek musí být záhlaví
     if not GINFO['header']:
         # Pokud aktuální řádek je hlavička
-        if ippc_is_header(line):
+        if is_header(line):
             GINFO['header'] = True
         else:
             # Pokud není hlavička, zobrazíme chybovou zprávu a ukončíme program
@@ -304,7 +303,7 @@ def ippc_parse_line(line: str) -> None:
         return
 
     # Inkrementace čítače řádků        
-    GINFO['i_lines'] = GINFO['i_lines'] + 1
+    GINFO['i_lines'] += 1
     
     # Rozdělení řádku na instrukci a argumenty
     instr_args = line.split(' ')
@@ -329,28 +328,27 @@ def ippc_parse_line(line: str) -> None:
     for i, arg in enumerate(instr_args):
         arg_type = instr_id['argt'][i]
         arg_xml = XML_add_argument(instr_xml, i + 1)
-
-        if arg_type == OPERAND['var']:
-            if not ippc_parse_var(arg, arg_xml):
+        if arg_type == 'OPERAND[var]':
+            if not parse_var(arg, arg_xml):
                 sys.exit(RETCODE['ERANLYS'])
-        elif arg_type == OPERAND['symb']:
-            if not (ippc_parse_var(arg, arg_xml) or ippc_parse_const(arg, arg_xml)):
+        elif arg_type == 'OPERAND[symb]':
+            if not (parse_var(arg, arg_xml) or parse_const(arg, arg_xml)):
                 sys.exit(RETCODE['ERANLYS'])
-        elif arg_type == OPERAND['label']:
-            if not ippc_is_identifier(arg):
+        elif arg_type == 'OPERAND[label]':
+            if not is_identifier(arg):
                 sys.exit(RETCODE['ERANLYS'])
             else:
                 XML_make_label(arg_xml, arg)
-        elif arg_type == OPERAND['type']:
-            if not ippc_is_type(arg):
+        elif arg_type == 'OPERAND[type]':
+            if not is_type(arg):
                 sys.exit(RETCODE['ERANLYS'])
             else:
                 XML_make_type(arg_xml, arg)
         else:
             sys.exit(RETCODE['ERANLYS'])
-
+            
 # Funkce ověřuje a zpracovává proměnnou a přidává ji do XML
-def ippc_parse_var(op, arg_xml):
+def parse_var(op, arg_xml):
     op_split = op.split('@', 1)
     
     # Kontrola formátu: FRAME@ID
@@ -360,11 +358,11 @@ def ippc_parse_var(op, arg_xml):
     var_frame, var_id = op_split
     
     # Kontrola FRAME = GF|LF|TF
-    if not ippc_is_frame(var_frame):
+    if not is_frame(var_frame):
         return False
     
     # Kontrola ID
-    if not ippc_is_identifier(var_id):
+    if not is_identifier(var_id):
         return False
     
     # Platná proměnná -> přidat do XML
@@ -372,7 +370,7 @@ def ippc_parse_var(op, arg_xml):
     return True
 
 # Funkce ověřuje a zpracovává konstantu a přidává ji do XML
-def ippc_parse_const(op, arg_xml):
+def parse_const(op, arg_xml):
     op_split = op.split('@', 1)
     
     # Kontrola formátu: TYPE@VALUE
@@ -382,7 +380,7 @@ def ippc_parse_const(op, arg_xml):
     const_type, const_val = op_split
     
     # Kontrola TYPE
-    if not ippc_is_type(const_type):
+    if not is_type(const_type):
         return False
     
     const_typeid = DTYPE[const_type]
@@ -411,35 +409,35 @@ def ippc_parse_const(op, arg_xml):
     return True
 
 # Funkce pro kontrolu, zda je řetězec platným identifikátorem
-def ippc_is_identifier(op):
+def is_identifier(op):
     return bool(re.match(r'^[$&%!a-zA-Z_\-\*\?][$&%!\w\-\*\?]*$', op))
 
 # Funkce pro kontrolu, zda je řetězec platným rámcem
-def ippc_is_frame(op):
+def is_frame(op):
     return bool(re.match(r'^(GF|LF|TF)$', op))
 
 # Funkce pro kontrolu, zda je řetězec komentářem
-def ippc_is_comment(line):
+def is_comment(line):
     return bool(re.match(r'^\s*#.*', line))
 
 # Funkce pro kontrolu, zda je řetězec prázdným řádkem
-def ippc_is_empty_line(line):
+def is_empty_line(line):
     return bool(re.match(r'^\s*$', line))
 
 # Funkce pro kontrolu, zda je řetězec komentářem
-def ippc_has_comment(line):
+def has_comment(line):
     return bool(re.match(r'^.*#', line))
 
 # Funkce pro odstranění komentářů
-def ippc_remove_comments(line):
+def remove_comments(line):
     return line.split('#', 1)[0]
 
 # Funkce pro kontrolu, zda je řetězec hlavičkou
-def ippc_is_header(line):
+def is_header(line):
     return bool(re.match(r'^\.IPPcode24$', line))
 
 # Funkce pro kontrolu, zda je řetězec platným typem
-def ippc_is_type(op):
+def is_type(op):
     return op in DTYPE
 
 # Funkce pro výpis nápovědy
@@ -487,7 +485,7 @@ def main():
     # Zpracování vstupu
     for lineno, line in enumerate(sys.stdin):
         GINFO['lines'] = lineno + 1
-        ippc_parse_line(line)
+        parse_line(line)
 
     # Kontrola chybějící hlavičky
     if not GINFO['header']:
