@@ -1,9 +1,9 @@
-"""
-Název skriptu: parse.py
-Autor: Martina Hromadkova
-Login: xhroma15
-Datum: 18. 2. 2024
-Popis: Tento skript slouží k analýze kódu v IPPcode24 a generování XML reprezentace.
+"""Tento skript slouží k analýze kódu v IPPcode24 a generování XML reprezentace.
+
+    Název skriptu: parse.py
+    Datum: 18. 2. 2024
+    Autor: Martina Hromadkova
+    Login: xhroma15
 """
 
 import re
@@ -13,6 +13,8 @@ from typing import Union
 import xml.etree.ElementTree as ET
 
 # Konstanty
+
+GINFO = {'lines': 0, 'header': False, 'i_lines': 0, 'c_lines': 0}
 
 # Výčet datových typů
 DTYPE = {
@@ -231,7 +233,7 @@ def XML_add_instruction(name: str) -> ET.Element:
     return instruction
 
 # Funkce pro přidání argumentu do instrukce
-def XML_add_arg(instruction: ET.Element, order: int) -> ET.Element:
+def XML_add_argument(instruction: ET.Element, order: int) -> ET.Element:
     return ET.SubElement(instruction, f'arg{order}')
 
 # Funkce pro vytvoření XML reprezentace proměnné
@@ -293,56 +295,81 @@ def ippc_parse_line(line: str) -> None:
 
     # První neprázdný řádek musí být záhlaví
     if not GINFO['header']:
-        GINFO['header'] = True if ippc_is_header(line) else None
-        if not GINFO['header']:
-            sys.exit('ERR! code ERNOHEAD\nERR! line {}\nERR! Missing .IPPcode24 header'.format(GINFO['lines']))
+        # Pokud aktuální řádek je hlavička
+        if ippc_is_header(line):
+            GINFO['header'] = True
+        else:
+            # Pokud není hlavička, zobrazíme chybovou zprávu a ukončíme program
+            error_code = RETCODE['ERNOHEAD']
+            sys.stderr.write(f"{error_code}\n")
+            sys.exit(RETCODE['ERNOHEAD'])
+        return
 
-    GINFO['i_lines'] += 1
-
+    # Inkrementace čítače řádků        
+    GINFO['i_lines'] = GINFO['i_lines'] + 1
+    
     # Rozdělení řádku na instrukci a argumenty
     instr_args = line.split(' ')
     instr = instr_args.pop(0).upper() if instr_args else None
     if not instr:
-        sys.exit('ERR! code EROPCODE\nERR! line {}\nERR! Missing operation code'.format(GINFO['lines']))
+        error_code = RETCODE['EROPCODE']
+        sys.stderr.write(f"{error_code}\n")
+        sys.exit(RETCODE['EROPCODE'])
 
     # Kontrola, zda je instrukce v seznamu
     instr_id = INSTR.get(instr, None) if INSTR else None
     if not instr_id:
-        sys.exit('ERR! code EROPCODE\nERR! line {}\nERR! Unknown instruction {}'.format(GINFO['lines'], instr))
-    if instr_id['ext'] and GINFO['legacy']:
-        sys.exit('ERR! code EROPCODE\nERR! line {}\nERR! Instruction {} not allowed in legacy mode'.format(GINFO['lines'], instr))
+        print(f"Chyba: Neznámá instrukce '{instr}'.", file=sys.stderr)
+        error_code = RETCODE['EROPCODE']
+        sys.stderr.write(f"{error_code}\n")
+        sys.exit(RETCODE['EROPCODE'])
+    
+    print(instr_args)
 
+    print(instr_id['id'])
     # XML prvek instrukce
     instr_xml = XML_add_instruction(instr)
 
     # Kontrola počtu argumentů
     instr_argc = len(instr_args)
     if instr_argc != len(instr_id['argt']):
-        sys.exit('ERR! code ERANLYS\nERR! line {}\nERR! {} expects {} arguments, got {}'.format(GINFO['lines'], instr, len(instr_id['argt']), instr_argc))
+        error_code = RETCODE['ERANLYS']
+        sys.stderr.write(f"{error_code}\n")
+        sys.exit(RETCODE['ERANLYS'])
 
     # Zpracování argumentů
     for i, arg in enumerate(instr_args):
         arg_type = instr_id['argt'][i]
-        arg_xml = XML_add_arg(instr_xml, i + 1)
+        arg_xml = XML_add_argument(instr_xml, i + 1)
 
         if arg_type == OPERAND['var']:
             if not ippc_parse_var(arg, arg_xml):
-                sys.exit('ERR! code ERANLYS\nERR! line {}\nERR! Invalid variable {}'.format(GINFO['lines'], arg))
+                error_code = RETCODE['ERANLYS']
+                sys.stderr.write(f"{error_code}\n")
+                sys.exit(RETCODE['ERANLYS'])
         elif arg_type == OPERAND['symb']:
             if not (ippc_parse_var(arg, arg_xml) or ippc_parse_const(arg, arg_xml)):
-                sys.exit('ERR! code ERANLYS\nERR! line {}\nERR! Invalid symbol {}'.format(GINFO['lines'], arg))
+                error_code = RETCODE['ERANLYS']
+                sys.stderr.write(f"{error_code}\n")
+                sys.exit(RETCODE['ERANLYS'])
         elif arg_type == OPERAND['label']:
             if not ippc_is_identifier(arg):
-                sys.exit('ERR! code ERANLYS\nERR! line {}\nERR! Invalid label {}'.format(GINFO['lines'], arg))
+                error_code = RETCODE['ERANLYS']
+                sys.stderr.write(f"{error_code}\n")
+                sys.exit(RETCODE['ERANLYS'])
             else:
                 XML_make_label(arg_xml, arg)
         elif arg_type == OPERAND['type']:
             if not ippc_is_type(arg):
-                sys.exit('ERR! code ERANLYS\nERR! line {}\nERR! Invalid type {}'.format(GINFO['lines'], arg))
+                error_code = RETCODE['ERANLYS']
+                sys.stderr.write(f"{error_code}\n")
+                sys.exit(RETCODE['ERANLYS'])
             else:
                 XML_make_type(arg_xml, arg)
         else:
-            sys.exit('ERR! code ERANLYS\nERR! line {}\nERR! Couldn\'t validate type of {}'.format(GINFO['lines'], arg))
+            error_code = RETCODE['ERANLYS']
+            sys.stderr.write(f"{error_code}\n")
+            sys.exit(RETCODE['ERANLYS'])
 
 # Funkce ověřuje a zpracovává proměnnou a přidává ji do XML
 def ippc_parse_var(op, arg_xml):
@@ -455,6 +482,12 @@ def print_help():
 
 # Hlavní funkce pro analýzu přepínačů a volání odpovídajících funkcí
 def main():
+    global GINFO
+    global XML
+    
+    # Vytvoření XML reprezentace kódu
+    XML = XML_new_root()
+
     # Inicializace parseru argumentů s popisem programu a bez automatického přidání help přepínače
     parser = argparse.ArgumentParser(description='IPPcode24 Parser', add_help=False)
     
@@ -472,9 +505,6 @@ def main():
     # Pokud byl předán argument --help
     if args.help:
         print_help()
-        
-    # Vytvoření XML reprezentace kódu
-    XML = XML_new_root()
 
     # Zpracování vstupu
     for lineno, line in enumerate(sys.stdin):
@@ -483,7 +513,7 @@ def main():
 
     # Kontrola chybějící hlavičky
     if not GINFO['header']:
-        sys.exit('ERR! code ERNOHEAD\nERR! Chybějící hlavička .IPPcode24 (prázdný soubor)')
+        sys.exit(RETCODE['ERNOHEAD'])
 
     # Výpis XML reprezentace kódu
     print(XML_asXML(True))
