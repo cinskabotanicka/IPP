@@ -300,8 +300,6 @@ def ippc_parse_line(line: str) -> None:
             GINFO['header'] = True
         else:
             # Pokud není hlavička, zobrazíme chybovou zprávu a ukončíme program
-            error_code = RETCODE['ERNOHEAD']
-            sys.stderr.write(f"{error_code}\n")
             sys.exit(RETCODE['ERNOHEAD'])
         return
 
@@ -312,29 +310,19 @@ def ippc_parse_line(line: str) -> None:
     instr_args = line.split(' ')
     instr = instr_args.pop(0).upper() if instr_args else None
     if not instr:
-        error_code = RETCODE['EROPCODE']
-        sys.stderr.write(f"{error_code}\n")
         sys.exit(RETCODE['EROPCODE'])
 
     # Kontrola, zda je instrukce v seznamu
     instr_id = INSTR.get(instr, None) if INSTR else None
     if not instr_id:
-        print(f"Chyba: Neznámá instrukce '{instr}'.", file=sys.stderr)
-        error_code = RETCODE['EROPCODE']
-        sys.stderr.write(f"{error_code}\n")
         sys.exit(RETCODE['EROPCODE'])
-    
-    print(instr_args)
 
-    print(instr_id['id'])
     # XML prvek instrukce
     instr_xml = XML_add_instruction(instr)
 
     # Kontrola počtu argumentů
     instr_argc = len(instr_args)
     if instr_argc != len(instr_id['argt']):
-        error_code = RETCODE['ERANLYS']
-        sys.stderr.write(f"{error_code}\n")
         sys.exit(RETCODE['ERANLYS'])
 
     # Zpracování argumentů
@@ -344,31 +332,21 @@ def ippc_parse_line(line: str) -> None:
 
         if arg_type == OPERAND['var']:
             if not ippc_parse_var(arg, arg_xml):
-                error_code = RETCODE['ERANLYS']
-                sys.stderr.write(f"{error_code}\n")
                 sys.exit(RETCODE['ERANLYS'])
         elif arg_type == OPERAND['symb']:
             if not (ippc_parse_var(arg, arg_xml) or ippc_parse_const(arg, arg_xml)):
-                error_code = RETCODE['ERANLYS']
-                sys.stderr.write(f"{error_code}\n")
                 sys.exit(RETCODE['ERANLYS'])
         elif arg_type == OPERAND['label']:
             if not ippc_is_identifier(arg):
-                error_code = RETCODE['ERANLYS']
-                sys.stderr.write(f"{error_code}\n")
                 sys.exit(RETCODE['ERANLYS'])
             else:
                 XML_make_label(arg_xml, arg)
         elif arg_type == OPERAND['type']:
             if not ippc_is_type(arg):
-                error_code = RETCODE['ERANLYS']
-                sys.stderr.write(f"{error_code}\n")
                 sys.exit(RETCODE['ERANLYS'])
             else:
                 XML_make_type(arg_xml, arg)
         else:
-            error_code = RETCODE['ERANLYS']
-            sys.stderr.write(f"{error_code}\n")
             sys.exit(RETCODE['ERANLYS'])
 
 # Funkce ověřuje a zpracovává proměnnou a přidává ji do XML
