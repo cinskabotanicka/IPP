@@ -11,6 +11,8 @@ import sys
 import argparse
 from typing import Union
 import xml.etree.ElementTree as ET
+import xml.dom.minidom
+from xml.etree.ElementTree import tostring
 
 # Konstanty
 
@@ -153,7 +155,7 @@ INSTR = {
         'id': 28,
         'argt': ['OPERAND[var]', 'OPERAND[symb]'],
     },
-    # Instrukce na řízení tSUCCESSu programu
+    # Instrukce na řízení toku programu
     'LABEL': {
         'id': 29,
         'argt': ['OPERAND[label]'],
@@ -205,14 +207,23 @@ RETCODE = {
 #
 
 # Funkce pro vrácení XML jako řetězce, volitelně formátovaného jako dokument XML
-def XML_asXML(format: bool = False) -> str: 
+def XML_asXML(format: bool = False) -> str:
     global XML
 
-    if not format:
-        return ET.tostring(XML, encoding='unicode')
+    xml_string = tostring(XML, encoding='unicode')
 
-    xml_string = ET.tostring(XML, encoding='unicode')
-    return '<?xml version="1.0" encoding="UTF-8"?>\n' + xml_string
+    if not format:
+        return xml_string
+
+    # Parse XML a formátování
+    xml_dom = xml.dom.minidom.parseString(xml_string)
+    pretty_xml_string = xml_dom.toprettyxml(indent="  ")
+
+    # Odstranění prvního řádku pro formátování
+    pretty_xml_lines = pretty_xml_string.split('\n')[1:]
+    pretty_xml_string = '\n'.join(pretty_xml_lines)
+
+    return '<?xml version="1.0" encoding="UTF-8"?>\n' + pretty_xml_string
 
 # Funkce pro vytvoření kořenového elementu XML 
 def XML_new_root() -> ET.Element:
@@ -223,13 +234,24 @@ def XML_new_root() -> ET.Element:
 
 # Funkce pro přidání instrukce do XML
 def XML_add_instruction(name: str) -> ET.Element:
+
     global GINFO
     global XML
 
-    instruction = ET.SubElement(XML, 'instruction')
+    instruction = ET.Element('instruction')
     instruction.set('order', str(GINFO['i_lines']))
     instruction.set('opcode', name)
+
+    # Instrukce nemá žádné argumenty
+    if not INSTR[name]['argt']:
+        XML.append(instruction)
+        return instruction
+
+    # Přidání instrukce do XML
+    XML.append(instruction)
+
     return instruction
+
 
 # Funkce pro přidání argumentu do instrukce
 def XML_add_argument(instruction: ET.Element, order: int) -> ET.Element:
