@@ -15,8 +15,12 @@ import xml.dom.minidom
 from xml.etree.ElementTree import tostring
 
 # Konstanty
-
-GINFO = {'lines': 0, 'header': False, 'i_lines': 0, 'c_lines': 0}
+GINFO = {
+    'lines': 0, 
+    'header': False, 
+    'i_lines': 0, 
+    'c_lines': 0
+}
 
 # Výčet datových typů
 DTYPE = {
@@ -202,9 +206,7 @@ RETCODE = {
     'ERINT': 99,
 }
 
-#
 # Funkce pro generování XML reprezentace kódu
-#
 
 # Funkce pro vrácení XML jako řetězce, volitelně formátovaného jako dokument XML
 def XML_asXML(format: bool = False) -> str:
@@ -234,7 +236,6 @@ def XML_new_root() -> ET.Element:
 
 # Funkce pro přidání instrukce do XML
 def XML_add_instruction(name: str) -> ET.Element:
-
     global GINFO
     global XML
 
@@ -251,7 +252,6 @@ def XML_add_instruction(name: str) -> ET.Element:
     XML.append(instruction)
 
     return instruction
-
 
 # Funkce pro přidání argumentu do instrukce
 def XML_add_argument(instruction: ET.Element, order: int) -> ET.Element:
@@ -411,17 +411,17 @@ def parse_const(op, arg_xml):
     if const_typeid == DTYPE['int']:
         if not re.match(r'^[+-]?\d+$', const_val):
             return False
-    elif const_typeid == DTYPE['bool']:
-        if const_val not in ['true', 'false']:
-            return False
-    elif const_typeid == DTYPE['string']:
-        if re.search(r'[\s#]|(\\(?!\d{3}))', const_val):
-            return False
     elif const_typeid == DTYPE['nil']:
         if const_val != 'nil':
             return False
     elif const_typeid == DTYPE['float']:
         if not re.match(r'^[+-]?0x[0-9a-fA-F]+(\.[0-9a-fA-F]+)?p[+-]?\d+$', const_val):
+            return False    
+    elif const_typeid == DTYPE['bool']:
+        if const_val not in ['true', 'false']:
+            return False
+    elif const_typeid == DTYPE['string']:
+        if re.search(r'[\s#]|(\\(?!\d{3}))', const_val):
             return False
     else:
         return False
@@ -469,7 +469,7 @@ def print_help():
 
     IPPcode24 Parser
     Zpracuje kód (IPPcode24) ze standardního vstupu.
-    PSUCCESSud nenajde žádné syntaktické nebo lexikální chyby,
+    Pokud nenajde žádné syntaktické nebo lexikální chyby,
     vypíše jeho XML reprezentaci na standardní výstup.
 
     Volby:
